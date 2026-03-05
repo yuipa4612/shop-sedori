@@ -27,23 +27,30 @@ if uploaded_file is not None:
     st.image(image, caption="この商品をリサーチ中...", use_column_width=True)
     
     with st.spinner("AIが商品の特徴と価格相場を分析中..."):
-        # 429エラー対策: 3回までリトライする
+        # 429対策のリトライ機能
         for attempt in range(3):
             try:
-                # 安定性の高い 1.5-flash に戻しつつ、最新の処理を適用
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                # 404エラーを防ぐため、最も標準的な 'gemini-pro-vision' に変更
+                model = genai.GenerativeModel('gemini-pro-vision')
                 prompt = "この画像の商品をメルカリで探すための、最も適切な『メーカー名』『商品名』『特徴（色や形）』を教えてください。余計な説明は不要です。例：パナソニック 炊飯器 白 5.5合"
                 response = model.generate_content([prompt, image])
                 search_keywords = response.text.strip().replace("\n", " ")
                 st.success(f"検索ワード: {search_keywords}")
-                break # 成功したらループを抜ける
+                break 
             except Exception as e:
-                if "429" in str(e) and attempt < 2:
-                    time.sleep(2) # 2秒待ってから再試行
-                    continue
-                st.error(f"分析エラー: {e}")
-                st.info("※Google側の制限がかかっています。30秒ほど待ってからもう一度お試しください。")
-                break
+                # 404が出た場合、もう一つの標準名 'gemini-1.5-flash-latest' で試行
+                try:
+                    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+                    response = model.generate_content([prompt, image])
+                    search_keywords = response.text.strip().replace("\n", " ")
+                    st.success(f"検索ワード: {search_keywords}")
+                    break
+                except:
+                    if attempt < 2:
+                        time.sleep(2)
+                        continue
+                    st.error(f"分析エラー: {e}")
+                    break
 
 # --- 検索実行セクション ---
 if search_keywords:
