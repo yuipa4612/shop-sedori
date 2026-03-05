@@ -27,7 +27,8 @@ if uploaded_file is not None:
     
     with st.spinner("AIが商品の特徴と価格相場を分析中..."):
         try:
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            # 最新の gemini-2.0-flash を使用して404エラーを回避
+            model = genai.GenerativeModel('gemini-2.0-flash')
             prompt = "この画像の商品をメルカリで探すための、最も適切な『メーカー名』『商品名』『特徴（色や形）』を教えてください。余計な説明は不要です。例：パナソニック 炊飯器 白 5.5合"
             response = model.generate_content([prompt, image])
             search_keywords = response.text.strip().replace("\n", " ")
@@ -37,6 +38,7 @@ if uploaded_file is not None:
 
 # --- 検索実行セクション ---
 if search_keywords:
+    # 売り切れ（SOLD）に絞り込んだメルカリ検索URLを作成
     mercari_url = f"https://jp.mercari.com/search?keyword={search_keywords}&status=sold_out%7Ctrading&order=desc"
     st.markdown(f"### 🔍 [ここを押して『販売価格』を確認する]({mercari_url})")
 
