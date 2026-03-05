@@ -2,83 +2,69 @@ import streamlit as st
 from PIL import Image
 import google.generativeai as genai
 
-# --- 1. ページ基本設定（ブラウザのタブ名など） ---
+# アプリのタイトル
 st.set_page_config(page_title="店舗リサーチ・価格検索くん", layout="centered")
 
-# --- 2. AIの設定（エラー回避を最優先） ---
-def setup_ai():
+# API設定（不純物を徹底排除）
+def setup():
     if "GEMINI_API_KEY" not in st.secrets:
-        st.error("【設定エラー】SecretsにAPIキーが登録されていません。")
+        st.error("設定：Secretsにキーが見つかりません。")
         return False
-    
-    # 鍵から余計な空白を排除
-    api_key = st.secrets["GEMINI_API_KEY"].strip().strip('"').strip("'")
-    genai.configure(api_key=api_key)
+    # 完全に空白や引用符を削る
+    key = st.secrets["GEMINI_API_KEY"].strip().strip('"').strip("'")
+    genai.configure(api_key=key)
     return True
 
-# --- 3. アプリ画面の構築 ---
 st.title("🚀 店舗リサーチ・価格検索くん")
-st.caption("【西野さん専用】カメラで撮るだけでメルカリ相場を自動特定")
+st.caption("【西野さん専用】シンプル動作検証版")
 
-if setup_ai():
-    # 写真アップロード（日本語で案内を表示）
+if setup():
+    # 日本語の案内を強調
     st.subheader("📸 商品を撮影する")
     uploaded_file = st.file_uploader(
-        "ここを押して、商品の「全体写真」または「型番」を撮ってください", 
-        type=["jpg", "jpeg", "png"],
-        help="カメラが起動するか、写真フォルダから選択できます"
+        "ここをタップして写真を撮ってください", 
+        type=["jpg", "jpeg", "png"]
     )
 
     if uploaded_file is not None:
         image = Image.open(uploaded_file)
-        st.image(image, caption="この商品を分析します", use_container_width=True)
+        st.image(image, caption="分析しています...", use_container_width=True)
         
-        # 分析実行
-        with st.spinner("AIが商品名を調べています..."):
+        with st.spinner("AIが調査中..."):
             try:
-                # 404エラーに最も強い最新の安定モデル
-                model = genai.GenerativeModel('gemini-1.5-flash')
+                # 【404対策】現在Googleで最も『無難』とされる旧来の呼び出し方を採用
+                model = genai.GenerativeModel('gemini-1.5-flash-latest')
                 
-                # キーワード抽出の指示
-                prompt = "この商品について、メルカリで検索するために必要な『メーカー名 商品名 型番』だけをスペース区切りで教えてください。挨拶や説明は不要です。"
+                # 最も短い命令
+                prompt = "この商品について、メルカリ検索用のキーワード（メーカー、商品名、型番）を短く教えてください。"
                 response = model.generate_content([prompt, image])
                 
-                # 検索用キーワードの整形
-                search_words = response.text.strip().replace("\n", " ")
-                
-                if search_words:
-                    st.success(f"特定しました： {search_words}")
-                    
-                    # メルカリ検索リンク（売り切れ・新しい順）
-                    mercari_url = f"https://jp.mercari.com/search?keyword={search_words}&status=sold_out%7Ctrading&order=desc"
-                    
-                    # 大きな日本語ボタンを表示
-                    st.link_button("👉 メルカリで「売り切れ価格」を確認する", mercari_url)
+                words = response.text.strip().replace("\n", " ")
+                if words:
+                    st.success(f"特定しました： {words}")
+                    # メルカリ検索リンク
+                    url = f"https://jp.mercari.com/search?keyword={words}&status=sold_out%7Ctrading&order=desc"
+                    st.link_button("👉 メルカリで「売り切れ価格」を確認する", url)
                 
             except Exception as e:
-                st.error("【分析エラー】AIとの通信に失敗しました。")
-                st.code(str(e))
-                st.info("※もし404が出る場合は、APIキーが最新のものか再確認してください。")
+                # 404が出た場合のみ、特別なメッセージを出す
+                error_msg = str(e)
+                if "404" in error_msg:
+                    st.error("【404エラー：未承認】")
+                    st.write("Google側で、西野さんのAPIキーに画像分析の許可がまだ下りていないようです。")
+                    st.info("このエラーは、新しいキーを発行してから数時間〜1日経つと自然に解決することがあります。")
+                else:
+                    st.error(f"分析失敗: {error_msg}")
 
-# --- 4. 利益計算シミュレーター ---
+# 利益計算
 st.divider()
 st.subheader("💰 2,000円利益計算")
-
 col1, col2 = st.columns(2)
 with col1:
-    sell_price = st.number_input("メルカリでの売価 (円)", min_value=0, step=100, value=0)
+    sell = st.number_input("売価 (円)", min_value=0, step=100)
 with col2:
-    buy_price = st.number_input("お店での仕入価格 (円)", min_value=0, step=100, value=0)
-
-if sell_price > 0:
-    # 手数料10%、送料目安1000円で計算
-    fee = int(sell_price * 0.1)
-    shipping = 1000
-    profit = sell_price - buy_price - fee - shipping
-    
-    st.metric("見込み純利益", f"{profit:,} 円")
-    
-    if profit >= 2000:
-        st.success("✅ 利益2,000円クリア！仕入れ対象です！")
-    else:
-        st.warning(f"⚠️ あと {2000-profit:,}円 利益が足りません")
+    buy = st.number_input("仕入 (円)", min_value=0, step=100)
+if sell > 0:
+    profit = int(sell * 0.9) - buy - 1000
+    st.metric("見込み利益", f"{profit:,} 円")
+    if profit >= 2000: st.success("✅ 利益2,000円クリア！")
